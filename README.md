@@ -8,6 +8,9 @@ Try it out at [https://poji.app](https://poji.app)!
 
 Join the [Discord](https://discord.com/invite/2HwxyuSQHm) for feedback or support.
 
+> [!NOTE]  
+> Poji is ONLY a local .cbz file reader. It has no support for searching for or providing content and never will – not even through an add-on/extension system. The only network requests the site makes are to AniList.
+
 ## Development
 
 ```sh
