@@ -1,6 +1,6 @@
-# poji
+<img src="https://github.com/user-attachments/assets/ca4a3ef3-b4a0-4ae4-9de8-89b86fc4aec9" width="100px"/>
 
-A local .cbz reader for the browser.
+Local .cbz reader for the browser.
 
 Please check out the [wiki](https://wiki.poji.app) for more info.
 
