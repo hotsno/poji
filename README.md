@@ -1,17 +1,14 @@
 # poji
 
-A local web manga reader for CBZ files.
+A local .cbz reader for the browser.
+
+Please check out the [wiki](https://wiki.poji.app) for more info.
+
+Try it out at [https://poji.app](https://poji.app)!
 
 ## Development
 
 ```sh
-npm install
-npm run dev
-```
-
-## Build
-
-```sh
-npm run build
-npm run preview
+pnpm install
+pnpm run dev
 ```
