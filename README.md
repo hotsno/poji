@@ -6,6 +6,8 @@ Check out the [wiki](https://wiki.poji.app) for more info.
 
 Try it out at [https://poji.app](https://poji.app)!
 
+Join the [Discord](https://discord.com/invite/2HwxyuSQHm) for feedback or support.
+
 ## Development
 
 ```sh

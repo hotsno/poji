@@ -240,9 +240,14 @@
 				onsettingsopen={openSettings}
 			/>
 		{:else}
-			<button type="button" class="empty-settings-btn" aria-label="Settings" onclick={openSettings}>
-				<Settings size={17} aria-hidden="true" />
-			</button>
+			<div class="empty-actions">
+				<a class="empty-wiki-link" href="https://wiki.poji.app/" target="_blank" rel="noreferrer noopener">
+					Wiki
+				</a>
+				<button type="button" class="empty-settings-btn" aria-label="Settings" onclick={openSettings}>
+					<Settings size={17} aria-hidden="true" />
+				</button>
+			</div>
 		{/if}
 		<Home
 			onopen={handleOpen}
@@ -278,11 +283,29 @@
 		height: 100%;
 	}
 
-	.empty-settings-btn {
+	.empty-actions {
 		position: absolute;
 		top: 1.25rem;
 		right: var(--layout-padding-inline);
 		z-index: 10;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		font-family: 'Overpass', sans-serif;
+	}
+
+	.empty-wiki-link {
+		padding: 0.4rem 0.9rem;
+		border-radius: 0.375rem;
+		color: #9a9aa3;
+		font-size: 0.875rem;
+		font-weight: 500;
+		text-decoration: none;
+		transform: translateY(1px);
+		transition: color 150ms ease;
+	}
+
+	.empty-settings-btn {
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -297,6 +320,10 @@
 		transition:
 			background-color 150ms ease,
 			color 150ms ease;
+	}
+
+	.empty-wiki-link:hover {
+		color: #c8c8d0;
 	}
 
 	.empty-settings-btn:hover {
