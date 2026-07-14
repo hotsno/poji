@@ -15,6 +15,3 @@ pnpm install
 pnpm run dev
 ```
 
-## AI disclosure
-
-This project makes *heavy* use of AI code generation. This project has been something I've been wanting to exist for a while now, but I couldn't find the time/will to commit to it – AI coding tools have changed that. That said, if this project receives enough traction, or if I'm ever bored, I will likely start putting a lot more care into the codebase.

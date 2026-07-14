@@ -22,6 +22,8 @@
 		advanceLocalProgressFromAniList,
 		findFirstChapter,
 		findNextChapter,
+		markChapterCurrentLocally,
+		syncCurrentChapterProgress,
 		normalizeMangaName
 	} from '../lib/progress.js';
 
@@ -53,6 +55,8 @@
 	let searchOpen = $state(false);
 	let heroPressed = $state(false);
 	let chapterPressedId = $state(null);
+	let chapterContextMenu = $state(null);
+	let manualProgressId = $state(null);
 	let seriesOrder = $state([]);
 	let entranceAnimationsDone = $state(false);
 	let fileInput = $state.raw(null);
@@ -448,6 +452,74 @@
 		}
 	}
 
+	/**
+	 * @param {MouseEvent} event
+	 * @param {string} mangaName
+	 * @param {string} volumeId
+	 * @param {string} chapterId
+	 * @param {number} chapterNumber
+	 */
+	function openChapterContextMenu(event, mangaName, volumeId, chapterId, chapterNumber) {
+		event.preventDefault();
+		if (openingId != null) return;
+
+		chapterPressedId = null;
+		chapterContextMenu = {
+			x: Math.max(8, Math.min(event.clientX, window.innerWidth - 260)),
+			y: Math.max(8, Math.min(event.clientY, window.innerHeight - 112)),
+			mangaName,
+			volumeId,
+			chapterId,
+			chapterNumber
+		};
+	}
+
+	function closeChapterContextMenu() {
+		chapterContextMenu = null;
+	}
+
+	/**
+	 * @param {boolean} syncToAniList
+	 */
+	async function markChapterCurrent(syncToAniList) {
+		const selection = chapterContextMenu;
+		if (!selection) return;
+
+		const progressKey = `${selection.volumeId}:${selection.chapterId}`;
+		chapterContextMenu = null;
+		openError = null;
+		manualProgressId = progressKey;
+
+		try {
+			const progress = await markChapterCurrentLocally(
+				selection.mangaName,
+				selection.volumeId,
+				selection.chapterId
+			);
+			localProgress = new Map(localProgress).set(selection.mangaName, progress);
+
+			if (syncToAniList) {
+				await syncCurrentChapterProgress(
+					selection.mangaName,
+					selection.volumeId,
+					selection.chapterId
+				);
+
+				const meta = seriesByName.get(selection.mangaName);
+				if (meta?.aniListId) {
+					aniListProgress = new Map(aniListProgress).set(
+						meta.aniListId,
+						Math.max(0, selection.chapterNumber - 1)
+					);
+				}
+			}
+		} catch (e) {
+			openError = e instanceof Error ? e.message : 'Failed to update chapter progress.';
+		} finally {
+			manualProgressId = null;
+		}
+	}
+
 	function volumeLabel(volume) {
 		if (volume.volumeNumber != null) return `Vol. ${volume.volumeNumber}`;
 		return volume.fileName.replace(/\.cbz$/i, '');
@@ -512,7 +584,14 @@
 								progressLocation?.volumeId === volume.id &&
 								progressLocation?.chapterId === chapter.id;
 							const isPastChapter = isPastVolume || (beforeCurrentChapter && !isNextChapter);
-							rows.push({ type: 'chapter', chapter, volume, isNextChapter, isPastChapter });
+							rows.push({
+								type: 'chapter',
+								chapter,
+								volume,
+								entry,
+								isNextChapter,
+								isPastChapter
+							});
 							if (isNextChapter) beforeCurrentChapter = false;
 						}
 					}
@@ -549,6 +628,11 @@
 
 	/** @param {KeyboardEvent} event */
 	function handleWindowKeydown(event) {
+		if (event.key === 'Escape' && chapterContextMenu) {
+			closeChapterContextMenu();
+			return;
+		}
+
 		if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
 			event.preventDefault();
 			openSearch();
@@ -577,6 +661,8 @@
 
 <svelte:window
 	onkeydown={handleWindowKeydown}
+	onclick={closeChapterContextMenu}
+	onblur={closeChapterContextMenu}
 	onpointerup={handlePressUp}
 	onpointercancel={handlePressUp}
 />
@@ -747,11 +833,22 @@
 								'chapter-btn',
 								{ pressed: chapterPressedId === `${row.volume.id}:${row.chapter.id}` }
 							]}
-							disabled={openingId != null}
-							aria-busy={openingId === `${row.volume.id}:${row.chapter.id}`}
+							disabled={openingId != null || manualProgressId != null}
+							aria-busy={
+								openingId === `${row.volume.id}:${row.chapter.id}` ||
+								manualProgressId === `${row.volume.id}:${row.chapter.id}`
+							}
 							onpointerdown={(event) => handleChapterPointerDown(event, row.volume.id, row.chapter.id)}
 							onpointerup={handlePressUp}
 							onpointercancel={handlePressUp}
+							oncontextmenu={(event) =>
+								openChapterContextMenu(
+									event,
+									row.entry.mangaName,
+									row.volume.id,
+									row.chapter.id,
+									row.chapter.number
+								)}
 							onclick={() => openChapter(row.volume.id, row.chapter.id)}
 						>
 							<span class="chapter-label">
@@ -802,6 +899,23 @@
 				openChapter(result.volumeId, result.chapterId, result.pageIndex ?? 0)}
 			onclose={closeSearch}
 		/>
+	{/if}
+
+	{#if chapterContextMenu}
+		<div
+			class="chapter-context-menu"
+			style={`left: ${chapterContextMenu.x}px; top: ${chapterContextMenu.y}px;`}
+			role="menu"
+			aria-label="Chapter progress actions"
+			tabindex="-1"
+		>
+			<button type="button" role="menuitem" onclick={() => markChapterCurrent(false)}>
+				Mark as current locally
+			</button>
+			<button type="button" role="menuitem" onclick={() => markChapterCurrent(true)}>
+				Mark as current and sync to AniList
+			</button>
+		</div>
 	{/if}
 
 	{#if hoveredCover}
@@ -1112,6 +1226,51 @@
 		to {
 			opacity: 1;
 			transform: translate(-50%, calc(-100% - 14px)) scale(1);
+		}
+	}
+
+	.chapter-context-menu {
+		position: fixed;
+		z-index: 25;
+		width: max-content;
+		min-width: 240px;
+		padding: 0.25rem;
+		border: 1px solid rgba(255, 255, 255, 0.13);
+		border-radius: 7px;
+		background: rgba(18, 18, 22, 0.98);
+		box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+		animation: context-menu-in 90ms cubic-bezier(0.33, 1, 0.68, 1) both;
+	}
+
+	.chapter-context-menu button {
+		all: unset;
+		box-sizing: border-box;
+		display: block;
+		width: 100%;
+		padding: 0.48rem 0.625rem;
+		border-radius: 5px;
+		color: #d8d8de;
+		font-size: 0.78rem;
+		line-height: 1.2;
+		white-space: nowrap;
+		cursor: pointer;
+	}
+
+	.chapter-context-menu button:hover,
+	.chapter-context-menu button:focus-visible {
+		background: rgba(138, 127, 240, 0.16);
+		color: #f0efff;
+	}
+
+	@keyframes context-menu-in {
+		from {
+			opacity: 0;
+			transform: translateY(-3px) scale(0.98);
+		}
+
+		to {
+			opacity: 1;
+			transform: translateY(0) scale(1);
 		}
 	}
 

@@ -248,6 +248,26 @@ export async function updateLocalPageProgress(mangaName, volumeId, chapterId, pa
 }
 
 /**
+ * Sets local progress to the selected current chapter.
+ *
+ * @param {string} mangaName
+ * @param {string} volumeId
+ * @param {string} chapterId
+ * @returns {Promise<import('./library.js').StoredProgress>}
+ */
+export async function markChapterCurrentLocally(mangaName, volumeId, chapterId) {
+	const progress = {
+		mangaName,
+		volumeId,
+		chapterId,
+		pageIndex: 0,
+		updatedAt: Date.now()
+	};
+	await saveProgress(progress);
+	return progress;
+}
+
+/**
  * Advances local progress from AniList when AniList points to a later next chapter.
  *
  * @param {string} mangaName
@@ -293,4 +313,29 @@ export async function syncChapterProgress(mangaName, volumeId, chapterId) {
 	if (progress == null) return;
 
 	await updateMangaProgress(series.aniListId, progress);
+}
+
+/**
+ * Syncs the selected current chapter to AniList by marking the previous chapter read.
+ *
+ * @param {string} mangaName
+ * @param {string} volumeId
+ * @param {string} chapterId
+ */
+export async function syncCurrentChapterProgress(mangaName, volumeId, chapterId) {
+	const series = await getSeries(mangaName);
+	if (!series?.aniListId) {
+		throw new Error('Match this series to AniList before syncing progress.');
+	}
+
+	const volumes = await listVolumes();
+	const mangaVolumes = volumesForSeries(volumes, mangaName);
+	const chapterNumber = chapterNumberFor(mangaVolumes, volumeId, chapterId);
+	if (chapterNumber == null) {
+		throw new Error('This chapter does not have a chapter number to sync.');
+	}
+
+	await updateMangaProgress(series.aniListId, Math.max(0, chapterNumber - 1), {
+		allowDecrease: true
+	});
 }

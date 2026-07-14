@@ -102,12 +102,13 @@ export async function getMangaProgress(mediaIds) {
 }
 
 /**
- * Updates the user's manga progress on AniList, only if the new value is higher.
+ * Updates the user's manga progress on AniList.
  *
  * @param {number} mediaId
  * @param {number} progress Chapter number to mark as read.
+ * @param {{ allowDecrease?: boolean }} [options]
  */
-export async function updateMangaProgress(mediaId, progress) {
+export async function updateMangaProgress(mediaId, progress, options) {
 	const token = getAccessToken();
 	if (!token) {
 		throw new Error('Connect your AniList account to sync progress.');
@@ -140,7 +141,8 @@ export async function updateMangaProgress(mediaId, progress) {
 	const entry = checkJson.data?.Media?.mediaListEntry;
 	const currentProgress = entry?.progress ?? 0;
 
-	if (progress <= currentProgress) return;
+	if (!options?.allowDecrease && progress <= currentProgress) return;
+	if (options?.allowDecrease && progress === currentProgress) return;
 
 	const mutationResponse = await anilistFetch(
 		'updateMangaProgress.saveProgress',
