@@ -1,5 +1,6 @@
 <script>
 	import { onMount } from 'svelte';
+	import Pica from 'pica';
 	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
 	import ChapterTransition from './ChapterTransition.svelte';
 	import { READING_DIRECTIONS } from '../lib/library.js';
@@ -17,6 +18,12 @@
 		onOpenNext,
 		onOpenPrev
 	} = $props();
+
+	const pica = new Pica();
+	let webgpuAvailable = true;
+	let webgpuFallbackWarned = false;
+	let picaAvailable = true;
+	let picaFallbackWarned = false;
 
 	let pageIndex = $state(0);
 	let uiVisible = $state(false);
@@ -106,15 +113,45 @@
 		const { width, height, cssWidth, cssHeight } = getTargetDimensions(bitmap, maxWidth, maxHeight);
 		canvas.style.width = `${cssWidth}px`;
 		canvas.style.height = `${cssHeight}px`;
-
-		const resizer = await getMitchellResizer();
-		if (resizer) {
-			await resizer.render(bitmap, canvas, width, height);
-			return;
-		}
-
 		canvas.width = width;
 		canvas.height = height;
+
+		if (webgpuAvailable) {
+			try {
+				const resizer = await getMitchellResizer();
+				if (resizer) {
+					// Keep the visible canvas 2D so it can still be used if WebGPU fails
+					// after acquiring its canvas context.
+					const gpuCanvas = document.createElement('canvas');
+					await resizer.render(bitmap, gpuCanvas, width, height);
+					drawBitmapToCanvas(gpuCanvas, canvas, width, height);
+					return;
+				}
+				webgpuAvailable = false;
+			} catch (err) {
+				webgpuAvailable = false;
+				if (!webgpuFallbackWarned) {
+					console.warn('Mitchell WebGPU resize failed; falling back to pica Lanczos3', err);
+					webgpuFallbackWarned = true;
+				}
+			}
+		}
+
+		if (width !== bitmap.width || height !== bitmap.height) {
+			if (picaAvailable) {
+				try {
+					await pica.resize(bitmap, canvas, { filter: 'lanczos3' });
+					return;
+				} catch (err) {
+					picaAvailable = false;
+					if (!picaFallbackWarned) {
+						console.warn('Pica Lanczos3 resize failed; falling back to browser canvas scaling', err);
+						picaFallbackWarned = true;
+					}
+				}
+			}
+		}
+
 		drawBitmapToCanvas(bitmap, canvas, width, height);
 	}
 

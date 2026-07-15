@@ -245,7 +245,7 @@ async function createMitchellResizer() {
 
 		return new MitchellResizer(device, format, horizontalPipeline, verticalPipeline);
 	} catch (error) {
-		console.warn('Mitchell WebGPU initialization failed; using browser canvas scaling', error);
+		console.warn('Mitchell WebGPU initialization failed; using fallback resizer', error);
 		return null;
 	}
 }
