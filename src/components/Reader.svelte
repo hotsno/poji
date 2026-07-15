@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
 	import ChapterTransition from './ChapterTransition.svelte';
+	import ScalingFallbackToast from './ScalingFallbackToast.svelte';
 	import { READING_DIRECTIONS, SCALE_ALGORITHMS } from '../lib/library.js';
 	import { getMitchellResizer } from '../lib/mitchell-resizer.js';
 	import { pica } from '../lib/scaling.js';
@@ -24,6 +25,11 @@
 	let webgpuFallbackWarned = false;
 	let picaAvailable = true;
 	let picaFallbackWarned = false;
+	/** @type {{ selected: string, fallback: string } | null} */
+	let scalingFallback = $state(null);
+	const announcedScalingFallbacks = new Set();
+	/** @type {ReturnType<typeof setTimeout> | undefined} */
+	let scalingFallbackTimer;
 
 	let pageIndex = $state(0);
 	let uiVisible = $state(false);
@@ -130,6 +136,19 @@
 		});
 	}
 
+	function showScalingFallback(selected, fallback) {
+		if (selected === fallback) return;
+		const key = `${selected}:${fallback}`;
+		if (announcedScalingFallbacks.has(key)) return;
+
+		announcedScalingFallbacks.add(key);
+		scalingFallback = { selected, fallback };
+		clearTimeout(scalingFallbackTimer);
+		scalingFallbackTimer = setTimeout(() => {
+			scalingFallback = null;
+		}, 6000);
+	}
+
 	async function resizeBitmap(index, bitmap, maxWidth, maxHeight, algorithm) {
 		const startedAt = performance.now();
 		const { width, height, cssWidth, cssHeight } = getTargetDimensions(bitmap, maxWidth, maxHeight);
@@ -164,6 +183,7 @@
 			if (picaAvailable) {
 				try {
 					await pica.resize(bitmap, canvas, { filter: 'lanczos3' });
+					showScalingFallback(algorithm, SCALE_ALGORITHMS.LANCZOS);
 					logResize(index, 'pica Lanczos3', bitmap, width, height, startedAt);
 					return { canvas, width, height, cssWidth, cssHeight };
 				} catch (err) {
@@ -177,6 +197,9 @@
 		}
 
 		drawBitmapToCanvas(bitmap, canvas, width, height);
+		if (width !== bitmap.width || height !== bitmap.height) {
+			showScalingFallback(algorithm, SCALE_ALGORITHMS.BROWSER);
+		}
 		logResize(
 			index,
 			width === bitmap.width && height === bitmap.height
@@ -479,6 +502,7 @@
 		resetCursorHideTimer();
 		return () => {
 			clearTimeout(cursorHideTimer);
+			clearTimeout(scalingFallbackTimer);
 			clearLongPressTimer();
 		};
 	});
@@ -557,6 +581,13 @@
 		>
 			<button type="button" role="menuitem" onclick={saveOriginalImage}>Save original image</button>
 		</div>
+	{/if}
+
+	{#if scalingFallback}
+		<ScalingFallbackToast
+			selected={scalingFallback.selected}
+			fallback={scalingFallback.fallback}
+		/>
 	{/if}
 
 	{#if uiVisible}
