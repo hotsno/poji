@@ -1,10 +1,10 @@
 <script>
 	import { onMount } from 'svelte';
-	import Pica from 'pica';
 	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
 	import ChapterTransition from './ChapterTransition.svelte';
-	import { READING_DIRECTIONS } from '../lib/library.js';
+	import { READING_DIRECTIONS, SCALE_ALGORITHMS } from '../lib/library.js';
 	import { getMitchellResizer } from '../lib/mitchell-resizer.js';
+	import { pica } from '../lib/scaling.js';
 
 	let {
 		book,
@@ -12,6 +12,7 @@
 		nextChapter,
 		prevChapter,
 		readingDirection = READING_DIRECTIONS.LEFT_TO_RIGHT,
+		scaleAlgorithm = SCALE_ALGORITHMS.BROWSER,
 		onclose,
 		onChapterComplete,
 		onPageChange,
@@ -19,7 +20,6 @@
 		onOpenPrev
 	} = $props();
 
-	const pica = new Pica();
 	let webgpuAvailable = true;
 	let webgpuFallbackWarned = false;
 	let picaAvailable = true;
@@ -130,14 +130,14 @@
 		});
 	}
 
-	async function resizeBitmap(index, bitmap, maxWidth, maxHeight) {
+	async function resizeBitmap(index, bitmap, maxWidth, maxHeight, algorithm) {
 		const startedAt = performance.now();
 		const { width, height, cssWidth, cssHeight } = getTargetDimensions(bitmap, maxWidth, maxHeight);
 		const canvas = document.createElement('canvas');
 		canvas.width = width;
 		canvas.height = height;
 
-		if (webgpuAvailable) {
+		if (algorithm === SCALE_ALGORITHMS.MITCHELL && webgpuAvailable) {
 			try {
 				const resizer = await getMitchellResizer();
 				if (resizer) {
@@ -157,7 +157,10 @@
 			}
 		}
 
-		if (width !== bitmap.width || height !== bitmap.height) {
+		if (
+			algorithm !== SCALE_ALGORITHMS.BROWSER &&
+			(width !== bitmap.width || height !== bitmap.height)
+		) {
 			if (picaAvailable) {
 				try {
 					await pica.resize(bitmap, canvas, { filter: 'lanczos3' });
@@ -187,17 +190,17 @@
 		return { canvas, width, height, cssWidth, cssHeight };
 	}
 
-	async function getResizedPage(index, maxWidth, maxHeight) {
+	async function getResizedPage(index, maxWidth, maxHeight, algorithm) {
 		const bitmap = await getBitmap(index);
 		const { width, height } = getTargetDimensions(bitmap, maxWidth, maxHeight);
-		const key = resizeCacheKey(index, width, height);
+		const key = `${resizeCacheKey(index, width, height)}:${algorithm}`;
 
 		const cached = resizeCache.get(key);
 		if (cached) return cached;
 
 		let promise = resizePromises.get(key);
 		if (!promise) {
-			promise = resizeBitmap(index, bitmap, maxWidth, maxHeight).then((resized) => {
+			promise = resizeBitmap(index, bitmap, maxWidth, maxHeight, algorithm).then((resized) => {
 				resizeCache.set(key, resized);
 				resizePromises.delete(key);
 				return resized;
@@ -222,10 +225,10 @@
 		}
 	}
 
-	function prefetchNeighbors(index, maxWidth, maxHeight) {
+	function prefetchNeighbors(index, maxWidth, maxHeight, algorithm) {
 		for (const neighbor of [index - 1, index + 1]) {
 			if (neighbor < 0 || neighbor >= book.pages.length) continue;
-			getResizedPage(neighbor, maxWidth, maxHeight).catch((err) =>
+			getResizedPage(neighbor, maxWidth, maxHeight, algorithm).catch((err) =>
 				console.error('Failed to prefetch page', neighbor, err)
 			);
 		}
@@ -243,6 +246,7 @@
 		const index = pageIndex;
 		const maxWidth = innerWidth.current;
 		const maxHeight = innerHeight.current;
+		const algorithm = scaleAlgorithm;
 		if (!maxWidth || !maxHeight) return;
 
 		const token = ++renderToken;
@@ -250,10 +254,10 @@
 		renderQueue = renderQueue
 			.then(async () => {
 				if (token !== renderToken) return;
-				const resized = await getResizedPage(index, maxWidth, maxHeight);
+				const resized = await getResizedPage(index, maxWidth, maxHeight, algorithm);
 				if (token !== renderToken) return;
 				blitToCanvas(canvas, resized);
-				prefetchNeighbors(index, maxWidth, maxHeight);
+				prefetchNeighbors(index, maxWidth, maxHeight, algorithm);
 			})
 			.catch((err) => console.error('Failed to render page', err));
 	}

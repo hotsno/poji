@@ -7,6 +7,7 @@ const PROGRESS_STORE = 'progress';
 const SERIES_ORDER_KEY = 'seriesOrder';
 const STORAGE_MODE_KEY = 'storageMode';
 const READING_DIRECTION_KEY = 'readingDirection';
+const SCALE_ALGORITHM_KEY = 'scaleAlgorithm';
 const DB_VERSION = 5;
 /** @type {Promise<IDBDatabase> | null} */
 let dbPromise = null;
@@ -19,6 +20,12 @@ export const STORAGE_MODES = {
 export const READING_DIRECTIONS = {
 	LEFT_TO_RIGHT: 'left-to-right',
 	RIGHT_TO_LEFT: 'right-to-left'
+};
+
+export const SCALE_ALGORITHMS = {
+	MITCHELL: 'mitchell-linear-light',
+	LANCZOS: 'lanczos',
+	BROWSER: 'browser'
 };
 
 /**
@@ -367,6 +374,50 @@ export async function saveReadingDirection(direction) {
 	return new Promise((resolve, reject) => {
 		const tx = db.transaction(SETTINGS_STORE, 'readwrite');
 		tx.objectStore(SETTINGS_STORE).put({ id: READING_DIRECTION_KEY, value: nextDirection });
+		tx.oncomplete = () => resolve();
+		tx.onerror = () => reject(tx.error);
+	});
+}
+
+/**
+ * Returns the saved algorithm when it is still supported, otherwise selects and
+ * persists the best currently available implementation.
+ * @param {{ mitchell: boolean, lanczos: boolean, browser: boolean }} capabilities
+ * @returns {Promise<'mitchell-linear-light' | 'lanczos' | 'browser'>}
+ */
+export async function getScaleAlgorithm(capabilities) {
+	const db = await openDb();
+	const saved = await new Promise((resolve, reject) => {
+		const tx = db.transaction(SETTINGS_STORE, 'readonly');
+		const request = tx.objectStore(SETTINGS_STORE).get(SCALE_ALGORITHM_KEY);
+		request.onsuccess = () => resolve(request.result?.value);
+		request.onerror = () => reject(request.error);
+	});
+
+	const savedIsSupported =
+		(saved === SCALE_ALGORITHMS.MITCHELL && capabilities.mitchell) ||
+		(saved === SCALE_ALGORITHMS.LANCZOS && capabilities.lanczos) ||
+		(saved === SCALE_ALGORITHMS.BROWSER && capabilities.browser);
+	if (savedIsSupported) return saved;
+
+	const best = capabilities.mitchell
+		? SCALE_ALGORITHMS.MITCHELL
+		: capabilities.lanczos
+			? SCALE_ALGORITHMS.LANCZOS
+			: SCALE_ALGORITHMS.BROWSER;
+	await saveScaleAlgorithm(best);
+	return best;
+}
+
+/** @param {'mitchell-linear-light' | 'lanczos' | 'browser'} algorithm */
+export async function saveScaleAlgorithm(algorithm) {
+	const value = Object.values(SCALE_ALGORITHMS).includes(algorithm)
+		? algorithm
+		: SCALE_ALGORITHMS.BROWSER;
+	const db = await openDb();
+	return new Promise((resolve, reject) => {
+		const tx = db.transaction(SETTINGS_STORE, 'readwrite');
+		tx.objectStore(SETTINGS_STORE).put({ id: SCALE_ALGORITHM_KEY, value });
 		tx.oncomplete = () => resolve();
 		tx.onerror = () => reject(tx.error);
 	});

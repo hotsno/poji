@@ -11,15 +11,19 @@
 		defaultReadingDirection,
 		defaultStorageMode,
 		getReadingDirection,
+		getScaleAlgorithm,
 		getStorageMode,
 		isFileSystemStorageSupported,
 		getVolume,
 		countVolumes,
 		listVolumes,
 		getProgress,
+		SCALE_ALGORITHMS,
 		saveReadingDirection,
+		saveScaleAlgorithm,
 		saveStorageMode
 	} from './lib/library.js';
+	import { detectScalingCapabilities, scalingAlgorithmSupported } from './lib/scaling.js';
 	import { formatChapterLabel } from './lib/parse.js';
 	import {
 		completeLocalChapterProgress,
@@ -45,6 +49,9 @@
 	let fileSystemStorageSupported = $state(isFileSystemStorageSupported());
 	let storageMode = $state(defaultStorageMode());
 	let readingDirection = $state(defaultReadingDirection());
+	let scaleAlgorithm = $state(SCALE_ALGORITHMS.BROWSER);
+	let scalingCapabilities = $state.raw({ mitchell: false, lanczos: false, browser: true });
+	let scalingCapabilitiesReady = $state(false);
 	let hasLibrary = $state(false);
 	let settingsOpen = $state(false);
 	let pageProgressQueue = Promise.resolve();
@@ -60,6 +67,21 @@
 	}
 
 	refreshReadingDirection();
+
+	async function initializeScaling() {
+		try {
+			scalingCapabilities = await detectScalingCapabilities();
+			scaleAlgorithm = await getScaleAlgorithm(scalingCapabilities);
+		} catch (error) {
+			console.warn('Could not initialize image scaling settings', error);
+			scalingCapabilities = { mitchell: false, lanczos: false, browser: true };
+			scaleAlgorithm = SCALE_ALGORITHMS.BROWSER;
+		} finally {
+			scalingCapabilitiesReady = true;
+		}
+	}
+
+	void initializeScaling();
 
 	async function refreshHasLibrary() {
 		hasLibrary = (await countVolumes()) > 0;
@@ -111,6 +133,13 @@
 	async function handleReadingDirectionChange(direction) {
 		await saveReadingDirection(direction);
 		readingDirection = await getReadingDirection();
+	}
+
+	/** @param {'mitchell-linear-light' | 'lanczos' | 'browser'} algorithm */
+	async function handleScaleAlgorithmChange(algorithm) {
+		if (!scalingAlgorithmSupported(algorithm, scalingCapabilities)) return;
+		await saveScaleAlgorithm(algorithm);
+		scaleAlgorithm = algorithm;
 	}
 
 	function openSettings() {
@@ -232,6 +261,7 @@
 			onOpenNext={(next) => handleOpen(next)}
 			onOpenPrev={(prev) => handleOpen({ ...prev, startAtEnd: true })}
 			{readingDirection}
+			{scaleAlgorithm}
 		/>
 	{:else}
 		{#if hasLibrary}
@@ -267,9 +297,13 @@
 		<SettingsModal
 			{storageMode}
 			{readingDirection}
+			{scaleAlgorithm}
+			{scalingCapabilities}
+			{scalingCapabilitiesReady}
 			{fileSystemStorageSupported}
 			onstoragemodechange={handleStorageModeChange}
 			onreadingdirectionchange={handleReadingDirectionChange}
+			onscalealgorithmchange={handleScaleAlgorithmChange}
 			onclose={closeSettings}
 		/>
 	{/if}

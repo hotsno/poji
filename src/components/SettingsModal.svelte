@@ -1,15 +1,30 @@
 <script>
 	import { onMount } from 'svelte';
-	import { ArrowLeft, ArrowRight, Check, Database, FolderOpen, Info, X } from 'lucide-svelte';
-	import { READING_DIRECTIONS, STORAGE_MODES } from '../lib/library.js';
+	import {
+		ArrowLeft,
+		ArrowRight,
+		Check,
+		Cpu,
+		Database,
+		FolderOpen,
+		Info,
+		Monitor,
+		Waves,
+		X
+	} from 'lucide-svelte';
+	import { READING_DIRECTIONS, SCALE_ALGORITHMS, STORAGE_MODES } from '../lib/library.js';
 	import { closeModal } from '../lib/modal-animation.js';
 
 	let {
 		storageMode = STORAGE_MODES.FILE_SYSTEM,
 		readingDirection = READING_DIRECTIONS.LEFT_TO_RIGHT,
+		scaleAlgorithm = SCALE_ALGORITHMS.BROWSER,
+		scalingCapabilities = { mitchell: false, lanczos: false, browser: true },
+		scalingCapabilitiesReady = false,
 		fileSystemStorageSupported = false,
 		onstoragemodechange,
 		onreadingdirectionchange,
+		onscalealgorithmchange,
 		onclose
 	} = $props();
 
@@ -32,6 +47,12 @@
 	async function setReadingDirection(direction) {
 		if (direction === readingDirection) return;
 		await onreadingdirectionchange?.(direction);
+	}
+
+	/** @param {'mitchell-linear-light' | 'lanczos' | 'browser'} algorithm */
+	async function setScaleAlgorithm(algorithm) {
+		if (algorithm === scaleAlgorithm) return;
+		await onscalealgorithmchange?.(algorithm);
 	}
 
 	async function close() {
@@ -138,6 +159,72 @@
 					<Check size={16} class="check-icon" aria-hidden="true" />
 				</button>
 			</div>
+
+			<div class="setting-label scaling-label">
+				Image scaling
+				{#if !scalingCapabilitiesReady}<span class="capability-status">Checking support…</span>{/if}
+			</div>
+			<div class="mode-list">
+				<div class="mode-row">
+					<button
+						type="button"
+						class={['mode-btn', { active: scaleAlgorithm === SCALE_ALGORITHMS.MITCHELL }]}
+						aria-pressed={scaleAlgorithm === SCALE_ALGORITHMS.MITCHELL}
+						aria-describedby="mitchell-scaling-info"
+						disabled={!scalingCapabilitiesReady || !scalingCapabilities.mitchell}
+						onclick={() => setScaleAlgorithm(SCALE_ALGORITHMS.MITCHELL)}
+					>
+						<Cpu size={18} aria-hidden="true" />
+						<span>Mitchell + linear light</span>
+						<Check size={16} class="check-icon" aria-hidden="true" />
+					</button>
+					<button type="button" class="info-wrap" aria-label="Mitchell scaling info">
+						<Info size={15} aria-hidden="true" />
+						<span id="mitchell-scaling-info" class="info-tip" role="tooltip">
+							Best quality, fast (WebGPU)<br><i>Unavailable on some browsers</i>
+						</span>
+					</button>
+				</div>
+				<div class="mode-row">
+					<button
+						type="button"
+						class={['mode-btn', { active: scaleAlgorithm === SCALE_ALGORITHMS.LANCZOS }]}
+						aria-pressed={scaleAlgorithm === SCALE_ALGORITHMS.LANCZOS}
+						aria-describedby="lanczos-scaling-info"
+						disabled={!scalingCapabilitiesReady || !scalingCapabilities.lanczos}
+						onclick={() => setScaleAlgorithm(SCALE_ALGORITHMS.LANCZOS)}
+					>
+						<Waves size={18} aria-hidden="true" />
+						<span>Lanczos</span>
+						<Check size={16} class="check-icon" aria-hidden="true" />
+					</button>
+					<button type="button" class="info-wrap" aria-label="Lanczos scaling info">
+						<Info size={15} aria-hidden="true" />
+						<span id="lanczos-scaling-info" class="info-tip" role="tooltip">
+							Good quality, slow (CPU) <br><i>Unavailable on some browsers</i>
+						</span>
+					</button>
+				</div>
+				<div class="mode-row">
+					<button
+						type="button"
+						class={['mode-btn', { active: scaleAlgorithm === SCALE_ALGORITHMS.BROWSER }]}
+						aria-pressed={scaleAlgorithm === SCALE_ALGORITHMS.BROWSER}
+						aria-describedby="browser-scaling-info"
+						onclick={() => setScaleAlgorithm(SCALE_ALGORITHMS.BROWSER)}
+					>
+						<Monitor size={18} aria-hidden="true" />
+						<span>Default</span>
+						<Check size={16} class="check-icon" aria-hidden="true" />
+					</button>
+					<button type="button" class="info-wrap" aria-label="Browser scaling info">
+						<Info size={15} aria-hidden="true" />
+						<span id="browser-scaling-info" class="info-tip" role="tooltip">
+							Low quality, fast
+						</span>
+					</button>
+				</div>
+			</div>
 		</section>
 
 		<div class="section-separator" aria-hidden="true"></div>
@@ -208,10 +295,13 @@
 		display: flex;
 		flex-direction: column;
 		gap: 1.25rem;
+		box-sizing: border-box;
+		height: 95dvh;
 		padding: 1.25rem;
 		border: 1px solid #2a2a32;
 		border-radius: 1rem;
 		background: #16161a;
+		overflow-y: auto;
 	}
 
 	.header {
@@ -277,6 +367,17 @@
 	.setting-label {
 		color: #d8d8de;
 		font-size: 0.88rem;
+		font-weight: 500;
+	}
+
+	.scaling-label {
+		margin-top: 0.25rem;
+	}
+
+	.capability-status {
+		float: right;
+		color: #8f8f98;
+		font-size: 0.76rem;
 		font-weight: 500;
 	}
 
@@ -375,7 +476,7 @@
 		box-shadow: 0 0.75rem 1.75rem rgba(0, 0, 0, 0.35);
 		font-size: 0.78rem;
 		font-weight: 500;
-		line-height: 1.35;
+		line-height: 1.55;
 		text-align: left;
 		pointer-events: none;
 		opacity: 0;
