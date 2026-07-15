@@ -16,7 +16,6 @@
   "dependencies": {
     "fflate": "^0.8.2",
     "lucide-svelte": "^1.0.1",
-    "pica": "^10.0.1",
     "unzipit": "^2.0.3"
   }
 }
