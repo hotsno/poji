@@ -1,6 +1,6 @@
 <script>
 	import { onDestroy } from 'svelte';
-	import { ArrowRight, RefreshCcw } from 'lucide-svelte';
+	import { ArrowRight, Check, RefreshCcw } from 'lucide-svelte';
 	import AniListMatchModal from './AniListMatchModal.svelte';
 	import LibraryEditModal from './LibraryEditModal.svelte';
 	import SearchModal from './SearchModal.svelte';
@@ -57,6 +57,12 @@
 	let chapterPressedId = $state(null);
 	let chapterContextMenu = $state(null);
 	let manualProgressId = $state(null);
+	const LONG_PRESS_DELAY_MS = 550;
+	/** @type {ReturnType<typeof setTimeout> | undefined} */
+	let chapterLongPressTimer;
+	/** @type {{ x: number, y: number } | null} */
+	let chapterLongPressStart = null;
+	let suppressNextChapterClick = false;
 	let seriesOrder = $state([]);
 	let entranceAnimationsDone = $state(false);
 	let fileInput = $state.raw(null);
@@ -69,6 +75,10 @@
 	let aniListProgress = $state(new Map());
 	/** @type {Map<string, import('../lib/library.js').StoredProgress>} */
 	let localProgress = $state(new Map());
+	let aniListAuthenticated = $derived.by(() => {
+		authVersion;
+		return isAuthenticated();
+	});
 
 	/** @type {Map<string, { aniListId: number, aniListTitle: string | null }>} */
 	let seriesByName = $derived.by(() => {
@@ -262,6 +272,7 @@
 	refreshLibrary();
 
 	onDestroy(() => {
+		clearChapterLongPressTimer();
 		for (const url of coverObjectUrls.values()) {
 			URL.revokeObjectURL(url);
 		}
@@ -452,6 +463,20 @@
 		}
 	}
 
+	function openChapterProgressMenu(x, y, mangaName, volumeId, chapterId, chapterNumber) {
+		if (openingId != null) return;
+
+		chapterPressedId = null;
+		chapterContextMenu = {
+			x: Math.max(8, Math.min(x, window.innerWidth - 260)),
+			y: Math.max(8, Math.min(y, window.innerHeight - 112)),
+			mangaName,
+			volumeId,
+			chapterId,
+			chapterNumber
+		};
+	}
+
 	/**
 	 * @param {MouseEvent} event
 	 * @param {string} mangaName
@@ -461,17 +486,15 @@
 	 */
 	function openChapterContextMenu(event, mangaName, volumeId, chapterId, chapterNumber) {
 		event.preventDefault();
-		if (openingId != null) return;
-
-		chapterPressedId = null;
-		chapterContextMenu = {
-			x: Math.max(8, Math.min(event.clientX, window.innerWidth - 260)),
-			y: Math.max(8, Math.min(event.clientY, window.innerHeight - 112)),
+		clearChapterLongPressTimer();
+		openChapterProgressMenu(
+			event.clientX,
+			event.clientY,
 			mangaName,
 			volumeId,
 			chapterId,
 			chapterNumber
-		};
+		);
 	}
 
 	function closeChapterContextMenu() {
@@ -615,15 +638,64 @@
 		heroPressed = true;
 	}
 
-	/** @param {PointerEvent} event */
-	function handleChapterPointerDown(event, volumeId, chapterId) {
+	function clearChapterLongPressTimer() {
+		clearTimeout(chapterLongPressTimer);
+		chapterLongPressTimer = undefined;
+		chapterLongPressStart = null;
+	}
+
+	/**
+	 * @param {PointerEvent} event
+	 * @param {string} mangaName
+	 * @param {string} volumeId
+	 * @param {string} chapterId
+	 * @param {number} chapterNumber
+	 */
+	function handleChapterPointerDown(event, mangaName, volumeId, chapterId, chapterNumber) {
 		if (event.button !== 0 || openingId != null) return;
 		chapterPressedId = `${volumeId}:${chapterId}`;
+		if (event.pointerType === 'mouse' || !event.isPrimary) return;
+
+		clearChapterLongPressTimer();
+		chapterLongPressStart = { x: event.clientX, y: event.clientY };
+		chapterLongPressTimer = setTimeout(() => {
+			suppressNextChapterClick = true;
+			openChapterProgressMenu(
+				event.clientX,
+				event.clientY,
+				mangaName,
+				volumeId,
+				chapterId,
+				chapterNumber
+			);
+		}, LONG_PRESS_DELAY_MS);
+	}
+
+	/** @param {PointerEvent} event */
+	function handleChapterPointerMove(event) {
+		if (event.pointerType === 'mouse' || !chapterLongPressStart) return;
+		const distance = Math.hypot(
+			event.clientX - chapterLongPressStart.x,
+			event.clientY - chapterLongPressStart.y
+		);
+		if (distance > 10) clearChapterLongPressTimer();
 	}
 
 	function handlePressUp() {
+		clearChapterLongPressTimer();
 		heroPressed = false;
 		chapterPressedId = null;
+	}
+
+	/** @param {MouseEvent} event */
+	function handleChapterClick(event, volumeId, chapterId) {
+		if (suppressNextChapterClick) {
+			event.preventDefault();
+			event.stopPropagation();
+			suppressNextChapterClick = false;
+			return;
+		}
+		void openChapter(volumeId, chapterId);
 	}
 
 	/** @param {KeyboardEvent} event */
@@ -679,6 +751,7 @@
 
 <main
 	class={['home', { empty: !hasLibrary, dragging, settled: entranceAnimationsDone }]}
+	onscroll={closeChapterContextMenu}
 	ondragover={handleDragOver}
 	ondragleave={() => (dragging = false)}
 	ondrop={handleDrop}
@@ -838,9 +911,18 @@
 								openingId === `${row.volume.id}:${row.chapter.id}` ||
 								manualProgressId === `${row.volume.id}:${row.chapter.id}`
 							}
-							onpointerdown={(event) => handleChapterPointerDown(event, row.volume.id, row.chapter.id)}
+							onpointerdown={(event) =>
+								handleChapterPointerDown(
+									event,
+									row.entry.mangaName,
+									row.volume.id,
+									row.chapter.id,
+									row.chapter.number
+								)}
+							onpointermove={handleChapterPointerMove}
 							onpointerup={handlePressUp}
 							onpointercancel={handlePressUp}
+							onpointerleave={handlePressUp}
 							oncontextmenu={(event) =>
 								openChapterContextMenu(
 									event,
@@ -849,7 +931,7 @@
 									row.chapter.id,
 									row.chapter.number
 								)}
-							onclick={() => openChapter(row.volume.id, row.chapter.id)}
+							onclick={(event) => handleChapterClick(event, row.volume.id, row.chapter.id)}
 						>
 							<span class="chapter-label">
 								<span class={['chapter-name', { next: row.isNextChapter }]}>{row.chapter.name}</span>
@@ -910,11 +992,15 @@
 			tabindex="-1"
 		>
 			<button type="button" role="menuitem" onclick={() => markChapterCurrent(false)}>
-				Mark as current locally
+				<Check size={14} strokeWidth={2} aria-hidden="true" />
+				<span>Mark current</span>
 			</button>
-			<button type="button" role="menuitem" onclick={() => markChapterCurrent(true)}>
-				Mark as current and sync to AniList
-			</button>
+			{#if aniListAuthenticated}
+				<button type="button" role="menuitem" onclick={() => markChapterCurrent(true)}>
+					<RefreshCcw size={14} strokeWidth={2} aria-hidden="true" />
+					<span>Mark current and sync</span>
+				</button>
+			{/if}
 		</div>
 	{/if}
 
@@ -1233,19 +1319,22 @@
 		position: fixed;
 		z-index: 25;
 		width: max-content;
-		min-width: 240px;
 		padding: 0.25rem;
 		border: 1px solid rgba(255, 255, 255, 0.13);
 		border-radius: 7px;
 		background: rgba(18, 18, 22, 0.98);
 		box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+		-webkit-user-select: none;
+		user-select: none;
 		animation: context-menu-in 90ms cubic-bezier(0.33, 1, 0.68, 1) both;
 	}
 
 	.chapter-context-menu button {
 		all: unset;
 		box-sizing: border-box;
-		display: block;
+		display: flex;
+		align-items: center;
+		gap: 0.45rem;
 		width: 100%;
 		padding: 0.48rem 0.625rem;
 		border-radius: 5px;
@@ -1254,6 +1343,11 @@
 		line-height: 1.2;
 		white-space: nowrap;
 		cursor: pointer;
+	}
+
+	.chapter-context-menu button :global(svg) {
+		flex-shrink: 0;
+		color: #9e95ef;
 	}
 
 	.chapter-context-menu button:hover,
@@ -1410,6 +1504,10 @@
 		gap: 0.625rem;
 		padding: 0.5rem 0.75rem;
 		cursor: pointer;
+		-webkit-tap-highlight-color: transparent;
+		-webkit-user-select: none;
+		touch-action: manipulation;
+		user-select: none;
 		transition: color 150ms ease;
 	}
 
@@ -1618,6 +1716,8 @@
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+		-webkit-user-select: none;
+		user-select: none;
 	}
 
 	.chapter-btn :global(.chapter-arrow) {
