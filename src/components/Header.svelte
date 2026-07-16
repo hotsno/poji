@@ -253,6 +253,7 @@
 
 	.login-btn,
 	.wiki-link {
+		position: relative;
 		padding: 0.4rem 0.9rem;
 		border: none;
 		border-radius: 0.375rem;
@@ -266,9 +267,26 @@
 		transition: color 150ms ease;
 	}
 
+	.login-btn::after,
+	.wiki-link::after {
+		content: '';
+		position: absolute;
+		left: 0.9rem;
+		bottom: 0.25rem;
+		width: 0;
+		height: 1px;
+		background: currentColor;
+		transition: width 200ms cubic-bezier(0.33, 1, 0.68, 1);
+	}
+
 	.login-btn:hover,
 	.wiki-link:hover {
 		color: #c8c8d0;
+	}
+
+	.login-btn:hover::after,
+	.wiki-link:hover::after {
+		width: calc(100% - 1.8rem);
 	}
 
 	.profile {

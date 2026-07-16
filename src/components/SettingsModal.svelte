@@ -288,7 +288,7 @@
 		padding: 0;
 		border: none;
 		background: transparent;
-		max-width: min(460px, calc(100vw - 2rem));
+		max-width: min(760px, calc(100vw - 2rem));
 		height: min(650px, 95dvh);
 		width: 100%;
 		overflow: hidden;
@@ -372,6 +372,7 @@
 
 	.mode-list {
 		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
 		gap: 0.5rem;
 	}
 
@@ -393,10 +394,23 @@
 	}
 
 	.mode-row {
-		display: grid;
-		grid-template-columns: 1fr auto;
-		align-items: center;
-		gap: 0.5rem;
+		position: relative;
+		min-width: 0;
+	}
+
+	.mode-row .mode-btn {
+		padding-right: 3.5rem;
+	}
+
+	.mode-row .mode-btn :global(.check-icon) {
+		transform: translateX(0.5rem);
+	}
+
+	.mode-row > .info-wrap {
+		position: absolute;
+		top: 50%;
+		right: 0.625rem;
+		transform: translateY(-50%);
 	}
 
 	.mode-btn {

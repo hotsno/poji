@@ -320,7 +320,10 @@
 	.empty-actions {
 		position: absolute;
 		top: 1.25rem;
-		right: var(--layout-padding-inline);
+		right: max(
+			var(--layout-padding-inline),
+			calc((100% - var(--layout-max-width)) / 2)
+		);
 		z-index: 10;
 		display: flex;
 		align-items: center;
@@ -329,6 +332,7 @@
 	}
 
 	.empty-wiki-link {
+		position: relative;
 		padding: 0.4rem 0.9rem;
 		border-radius: 0.375rem;
 		color: #9a9aa3;
@@ -337,6 +341,17 @@
 		text-decoration: none;
 		transform: translateY(1px);
 		transition: color 150ms ease;
+	}
+
+	.empty-wiki-link::after {
+		content: '';
+		position: absolute;
+		left: 0.9rem;
+		bottom: 0.25rem;
+		width: 0;
+		height: 1px;
+		background: currentColor;
+		transition: width 200ms cubic-bezier(0.33, 1, 0.68, 1);
 	}
 
 	.empty-settings-btn {
@@ -358,6 +373,10 @@
 
 	.empty-wiki-link:hover {
 		color: #c8c8d0;
+	}
+
+	.empty-wiki-link:hover::after {
+		width: calc(100% - 1.8rem);
 	}
 
 	.empty-settings-btn:hover {
