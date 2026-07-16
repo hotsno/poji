@@ -283,7 +283,9 @@
 		border: none;
 		background: transparent;
 		max-width: min(460px, calc(100vw - 2rem));
+		height: min(650px, 95dvh);
 		width: 100%;
+		overflow: hidden;
 		user-select: none;
 	}
 
@@ -296,12 +298,15 @@
 		flex-direction: column;
 		gap: 1.25rem;
 		box-sizing: border-box;
-		height: 95dvh;
+		height: 100%;
+		min-height: 0;
 		padding: 1.25rem;
 		border: 1px solid #2a2a32;
 		border-radius: 1rem;
 		background: #16161a;
 		overflow-y: auto;
+		overscroll-behavior: contain;
+		-webkit-overflow-scrolling: touch;
 	}
 
 	.header {
@@ -467,7 +472,8 @@
 		right: -0.25rem;
 		bottom: calc(100% + 0.65rem);
 		z-index: 1;
-		width: min(17rem, calc(100vw - 4rem));
+		width: max-content;
+		max-width: min(17rem, calc(100vw - 4rem));
 		padding: 0.625rem 0.75rem;
 		border: 1px solid #363640;
 		border-radius: 0.5rem;
