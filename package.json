@@ -9,7 +9,10 @@
     "preview": "vite preview"
   },
   "devDependencies": {
+    "@iconify-json/bi": "^1.2.7",
     "@iconify-json/simple-icons": "^1.2.90",
+    "@iconify-json/solar": "^1.2.5",
+    "@iconify-json/tabler": "^1.2.35",
     "@sveltejs/vite-plugin-svelte": "^5.0.3",
     "svelte": "^5.20.0",
     "unplugin-icons": "^23.0.1",

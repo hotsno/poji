@@ -4,14 +4,14 @@
 		ArrowLeft,
 		ArrowRight,
 		Check,
-		Cpu,
 		Database,
 		FolderOpen,
 		Info,
-		Monitor,
-		Waves,
 		X
 	} from 'lucide-svelte';
+	import BiGpuCard from '~icons/bi/gpu-card';
+	import SolarCpuBold from '~icons/solar/cpu-bold';
+	import TablerWorld from '~icons/tabler/world';
 	import { READING_DIRECTIONS, SCALE_ALGORITHMS, STORAGE_MODES } from '../lib/library.js';
 	import { closeModal } from '../lib/modal-animation.js';
 
@@ -119,7 +119,7 @@
 						onclick={() => setStorageMode(STORAGE_MODES.INDEXED_DB)}
 					>
 						<Database size={18} aria-hidden="true" />
-						<span>IndexedDB</span>
+						<span>Browser Storage</span>
 						<Check size={16} class="check-icon" aria-hidden="true" />
 					</button>
 					<button type="button" class="info-wrap" aria-label="IndexedDB storage info">
@@ -174,14 +174,17 @@
 						disabled={!scalingCapabilitiesReady || !scalingCapabilities.mitchell}
 						onclick={() => setScaleAlgorithm(SCALE_ALGORITHMS.MITCHELL)}
 					>
-						<Cpu size={18} aria-hidden="true" />
-						<span>Mitchell + linear light</span>
+						<BiGpuCard width={18} height={18} aria-hidden="true" />
+						<span>Mitchell + Linear Light</span>
 						<Check size={16} class="check-icon" aria-hidden="true" />
 					</button>
 					<button type="button" class="info-wrap" aria-label="Mitchell scaling info">
 						<Info size={15} aria-hidden="true" />
 						<span id="mitchell-scaling-info" class="info-tip" role="tooltip">
-							Best quality, fast (WebGPU)<br><i>Unavailable on some browsers</i>
+							Best quality, fast (GPU).
+							{#if scalingCapabilitiesReady && !scalingCapabilities.mitchell}
+								<br><i>Not supported by your browser or device</i>
+							{/if}
 						</span>
 					</button>
 				</div>
@@ -194,14 +197,17 @@
 						disabled={!scalingCapabilitiesReady || !scalingCapabilities.lanczos}
 						onclick={() => setScaleAlgorithm(SCALE_ALGORITHMS.LANCZOS)}
 					>
-						<Waves size={18} aria-hidden="true" />
+						<SolarCpuBold width={18} height={18} aria-hidden="true" />
 						<span>Lanczos</span>
 						<Check size={16} class="check-icon" aria-hidden="true" />
 					</button>
 					<button type="button" class="info-wrap" aria-label="Lanczos scaling info">
 						<Info size={15} aria-hidden="true" />
 						<span id="lanczos-scaling-info" class="info-tip" role="tooltip">
-							Good quality, slow (CPU) <br><i>Unavailable on some browsers</i>
+							Good quality, slow (CPU).
+							{#if scalingCapabilitiesReady && !scalingCapabilities.lanczos}
+								<br><i>Not supported by your browser or device</i>
+							{/if}
 						</span>
 					</button>
 				</div>
@@ -213,14 +219,14 @@
 						aria-describedby="browser-scaling-info"
 						onclick={() => setScaleAlgorithm(SCALE_ALGORITHMS.BROWSER)}
 					>
-						<Monitor size={18} aria-hidden="true" />
-						<span>Default</span>
+						<TablerWorld width={18} height={18} aria-hidden="true" />
+						<span>Browser Built-in</span>
 						<Check size={16} class="check-icon" aria-hidden="true" />
 					</button>
 					<button type="button" class="info-wrap" aria-label="Browser scaling info">
 						<Info size={15} aria-hidden="true" />
 						<span id="browser-scaling-info" class="info-tip" role="tooltip">
-							Low quality, fast
+							Low quality, fastest.
 						</span>
 					</button>
 				</div>
