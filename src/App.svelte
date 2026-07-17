@@ -25,6 +25,7 @@
 	} from './lib/library.js';
 	import { detectScalingCapabilities, scalingAlgorithmSupported } from './lib/scaling.js';
 	import { formatChapterLabel } from './lib/parse.js';
+	import { updateNativeReader } from './lib/tauri-bridge.js';
 	import {
 		completeLocalChapterProgress,
 		findFollowingChapter,
@@ -61,6 +62,23 @@
 			? `poji · ${book.mangaName} · ${book.chapterLabel} · Page ${currentPageIndex + 1}`
 			: 'poji · .cbz reader'
 	);
+
+	$effect(() => {
+		const currentBook = book;
+		const controller = new AbortController();
+		void updateNativeReader(
+			currentBook
+				? { mangaName: currentBook.mangaName, chapterLabel: currentBook.chapterLabel }
+				: null,
+			{ signal: controller.signal }
+		).catch((error) => {
+			if (!controller.signal.aborted) {
+				console.warn('Could not update the native reader state', error);
+			}
+		});
+
+		return () => controller.abort();
+	});
 
 	async function refreshStorageMode() {
 		storageMode = await getStorageMode();

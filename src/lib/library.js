@@ -70,6 +70,7 @@ export const SCALE_ALGORITHMS = {
  * @property {string} mangaName
  * @property {Blob} blob
  * @property {'local' | 'anilist'} source
+ * @property {string} [imgurUrl]
  * @property {number} updatedAt
  */
 
