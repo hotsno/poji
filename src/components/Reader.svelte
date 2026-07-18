@@ -260,7 +260,7 @@
 	}
 
 	function pruneResizeCache(currentIndex) {
-		const keepAhead = layoutMode === 'double' && currentIndex > 0 ? 7 : 7;
+		const keepAhead = 7;
 		for (const key of resizeCache.keys()) {
 			const cachedPageIndex = Number(key.split(':')[0]);
 			if (Math.abs(cachedPageIndex - currentIndex) > keepAhead) resizeCache.delete(key);
@@ -274,13 +274,17 @@
 		for (let i = 1; i <= ahead; i++) {
 			const forward = index + i;
 			if (forward < book.pages.length) {
-				getResizedPage(forward, maxWidth, maxHeight, algorithm).catch(() => {});
+				getResizedPage(forward, maxWidth, maxHeight, algorithm).catch((err) =>
+					console.error('Failed to prefetch page', forward, err)
+				);
 			}
 		}
 		for (let i = 1; i <= behind; i++) {
 			const backward = index - i;
 			if (backward >= 0) {
-				getResizedPage(backward, maxWidth, maxHeight, algorithm).catch(() => {});
+				getResizedPage(backward, maxWidth, maxHeight, algorithm).catch((err) =>
+					console.error('Failed to prefetch page', backward, err)
+				);
 			}
 		}
 		pruneResizeCache(index);
