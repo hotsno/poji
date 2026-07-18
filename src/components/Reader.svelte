@@ -267,6 +267,15 @@
 		}
 	}
 
+	function pruneBitmaps(currentIndex) {
+		const keepAhead = 7;
+		for (const [index, promise] of bitmaps) {
+			if (Math.abs(index - currentIndex) <= keepAhead) continue;
+			promise.then((bitmap) => bitmap.close()).catch(() => {});
+			bitmaps.delete(index);
+		}
+	}
+
 	function prefetchNeighbors(index, maxWidth, maxHeight, algorithm) {
 		const isDouble = layoutMode === 'double' && index > 0;
 		const ahead = 5;
@@ -288,6 +297,7 @@
 			}
 		}
 		pruneResizeCache(index);
+		pruneBitmaps(index);
 	}
 
 	let renderToken = 0;
