@@ -530,6 +530,37 @@ export async function deleteSeries(mangaName) {
 	});
 }
 
+/** @param {string} volumeId */
+export async function deleteVolume(volumeId) {
+	const volume = await getVolume(volumeId);
+	if (!volume) return;
+
+	const mangaName = normalizeMangaName(volume.mangaName);
+	const siblingVolumes = (await listVolumes()).filter(
+		(entry) => normalizeMangaName(entry.mangaName) === mangaName && entry.id !== volumeId
+	);
+	if (siblingVolumes.length === 0) {
+		await deleteSeries(mangaName);
+		return;
+	}
+
+	const progress = await getProgress(mangaName);
+	const db = await openDb();
+	await new Promise((resolve, reject) => {
+		const storeNames =
+			progress?.volumeId === volumeId
+				? [VOLUMES_STORE, PROGRESS_STORE]
+				: [VOLUMES_STORE];
+		const tx = db.transaction(storeNames, 'readwrite');
+		tx.objectStore(VOLUMES_STORE).delete(volumeId);
+		if (progress?.volumeId === volumeId) {
+			tx.objectStore(PROGRESS_STORE).delete(mangaName);
+		}
+		tx.oncomplete = () => resolve();
+		tx.onerror = () => reject(tx.error);
+	});
+}
+
 /**
  * @param {{ order: string[], deleted: string[] }} edits
  */

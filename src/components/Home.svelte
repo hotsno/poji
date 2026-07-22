@@ -1,6 +1,6 @@
 <script>
 	import { onDestroy } from 'svelte';
-	import { ArrowRight, Check, RefreshCcw } from 'lucide-svelte';
+	import { ArrowRight, Check, RefreshCcw, Trash2 } from 'lucide-svelte';
 	import AniListMatchModal from './AniListMatchModal.svelte';
 	import LibraryEditModal from './LibraryEditModal.svelte';
 	import SearchModal from './SearchModal.svelte';
@@ -9,6 +9,7 @@
 	import { formatChapterLabel } from '../lib/parse.js';
 	import {
 		applyLibraryEdits,
+		deleteVolume,
 		getSeriesOrder,
 		listProgress,
 		listSeriesCovers,
@@ -56,6 +57,7 @@
 	let heroPressed = $state(false);
 	let chapterPressedId = $state(null);
 	let chapterContextMenu = $state(null);
+	let libraryContextMenu = $state(null);
 	let manualProgressId = $state(null);
 	const LONG_PRESS_DELAY_MS = 550;
 	/** @type {ReturnType<typeof setTimeout> | undefined} */
@@ -466,6 +468,7 @@
 	function openChapterProgressMenu(x, y, mangaName, volumeId, chapterId, chapterNumber) {
 		if (openingId != null) return;
 
+		libraryContextMenu = null;
 		chapterPressedId = null;
 		chapterContextMenu = {
 			x: Math.max(8, Math.min(x, window.innerWidth - 260)),
@@ -499,6 +502,73 @@
 
 	function closeChapterContextMenu() {
 		chapterContextMenu = null;
+	}
+
+	/** @param {MouseEvent} event @param {typeof flatRows[0]} row */
+	function openLibraryContextMenu(event, row) {
+		if (row.type !== 'manga' && row.type !== 'volume') return;
+		event.preventDefault();
+		chapterContextMenu = null;
+		hideCoverPreview();
+		libraryContextMenu = {
+			x: Math.max(8, Math.min(event.clientX, window.innerWidth - 220)),
+			y: Math.max(8, Math.min(event.clientY, window.innerHeight - 64)),
+			type: row.type,
+			mangaName: row.entry.mangaName,
+			volumeId: row.type === 'volume' ? row.volume.id : null,
+			isOnlyVolume: row.type === 'volume' && row.entry.volumes.length === 1,
+			label: row.type === 'volume' ? volumeLabel(row.volume) : row.entry.mangaName
+		};
+	}
+
+	function closeContextMenus() {
+		closeChapterContextMenu();
+		libraryContextMenu = null;
+	}
+
+	async function deleteContextMenuItem() {
+		const selection = libraryContextMenu;
+		if (!selection) return;
+		libraryContextMenu = null;
+
+		const description =
+			selection.type === 'manga'
+				? `Delete “${selection.mangaName}” and all of its volumes?`
+				: `Delete ${selection.label} from “${selection.mangaName}”?`;
+		if (!window.confirm(description)) return;
+
+		openError = null;
+		try {
+			if (selection.type === 'manga') {
+				await applyLibraryEdits({
+					order: seriesOrder.filter((name) => name !== selection.mangaName),
+					deleted: [selection.mangaName]
+				});
+				expandedManga = new Set(
+					[...expandedManga].filter((name) => name !== selection.mangaName)
+				);
+			} else if (selection.volumeId) {
+				if (selection.isOnlyVolume) {
+					await applyLibraryEdits({
+						order: seriesOrder.filter((name) => name !== selection.mangaName),
+						deleted: [selection.mangaName]
+					});
+					expandedManga = new Set(
+						[...expandedManga].filter((name) => name !== selection.mangaName)
+					);
+				} else {
+					await deleteVolume(selection.volumeId);
+				}
+				expandedVolumes = new Set(
+					[...expandedVolumes].filter((id) => id !== selection.volumeId)
+				);
+			}
+
+			if (onlibrarychange) onlibrarychange();
+			else await refreshLibrary();
+		} catch (e) {
+			openError = e instanceof Error ? e.message : 'Failed to delete the library item.';
+		}
 	}
 
 	/**
@@ -700,8 +770,8 @@
 
 	/** @param {KeyboardEvent} event */
 	function handleWindowKeydown(event) {
-		if (event.key === 'Escape' && chapterContextMenu) {
-			closeChapterContextMenu();
+		if (event.key === 'Escape' && (chapterContextMenu || libraryContextMenu)) {
+			closeContextMenus();
 			return;
 		}
 
@@ -733,8 +803,8 @@
 
 <svelte:window
 	onkeydown={handleWindowKeydown}
-	onclick={closeChapterContextMenu}
-	onblur={closeChapterContextMenu}
+	onclick={closeContextMenus}
+	onblur={closeContextMenus}
 	onpointerup={handlePressUp}
 	onpointercancel={handlePressUp}
 />
@@ -751,7 +821,7 @@
 
 <main
 	class={['home', { empty: !hasLibrary, dragging, settled: entranceAnimationsDone }]}
-	onscroll={closeChapterContextMenu}
+	onscroll={closeContextMenus}
 	ondragover={handleDragOver}
 	ondragleave={() => (dragging = false)}
 	ondrop={handleDrop}
@@ -816,6 +886,8 @@
 						}
 					]}
 					style={row.type === 'manga' ? `--manga-index: ${row.mangaIndex}` : undefined}
+					role="group"
+					oncontextmenu={(event) => openLibraryContextMenu(event, row)}
 				>
 					{#if row.type === 'manga'}
 						<button
@@ -985,7 +1057,7 @@
 
 	{#if chapterContextMenu}
 		<div
-			class="chapter-context-menu"
+			class="context-menu"
 			style={`left: ${chapterContextMenu.x}px; top: ${chapterContextMenu.y}px;`}
 			role="menu"
 			aria-label="Chapter progress actions"
@@ -1001,6 +1073,21 @@
 					<span>Mark current and sync</span>
 				</button>
 			{/if}
+		</div>
+	{/if}
+
+	{#if libraryContextMenu}
+		<div
+			class="context-menu"
+			style={`left: ${libraryContextMenu.x}px; top: ${libraryContextMenu.y}px;`}
+			role="menu"
+			aria-label="Library actions"
+			tabindex="-1"
+		>
+			<button type="button" role="menuitem" class="danger" onclick={deleteContextMenuItem}>
+				<Trash2 size={14} strokeWidth={2} aria-hidden="true" />
+				<span>{libraryContextMenu.type === 'manga' ? 'Delete manga' : 'Delete volume'}</span>
+			</button>
 		</div>
 	{/if}
 
@@ -1315,7 +1402,7 @@
 		}
 	}
 
-	.chapter-context-menu {
+	.context-menu {
 		position: fixed;
 		z-index: 25;
 		width: max-content;
@@ -1329,7 +1416,7 @@
 		animation: context-menu-in 90ms cubic-bezier(0.33, 1, 0.68, 1) both;
 	}
 
-	.chapter-context-menu button {
+	.context-menu button {
 		all: unset;
 		box-sizing: border-box;
 		display: flex;
@@ -1345,15 +1432,26 @@
 		cursor: pointer;
 	}
 
-	.chapter-context-menu button :global(svg) {
+	.context-menu button :global(svg) {
 		flex-shrink: 0;
 		color: #9e95ef;
 	}
 
-	.chapter-context-menu button:hover,
-	.chapter-context-menu button:focus-visible {
+	.context-menu button:hover,
+	.context-menu button:focus-visible {
 		background: rgba(138, 127, 240, 0.16);
 		color: #f0efff;
+	}
+
+	.context-menu button.danger,
+	.context-menu button.danger :global(svg) {
+		color: #f0867f;
+	}
+
+	.context-menu button.danger:hover,
+	.context-menu button.danger:focus-visible {
+		background: rgba(240, 134, 127, 0.14);
+		color: #ffaaa4;
 	}
 
 	@keyframes context-menu-in {
